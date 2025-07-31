@@ -1,67 +1,18 @@
-type PendleVotingController_AddPool {
-  id: ID!
-  chainId: BigInt!
-  pool: String!
-}
-
-type PendleVotingController_AdminChanged {
-  id: ID!
-  previousAdmin: String!
-  newAdmin: String!
-}
-
-type PendleVotingController_BeaconUpgraded {
-  id: ID!
-  beacon: String!
-}
-
-type PendleVotingController_BroadcastResults {
-  id: ID!
-  chainId: BigInt!
-  wTime: BigInt!
-  totalPendlePerSec: BigInt!
-}
-
-type PendleVotingController_Initialized {
-  id: ID!
-  version: BigInt!
-}
-
-type PendleVotingController_OwnershipTransferred {
-  id: ID!
-  previousOwner: String!
-  newOwner: String!
-}
-
-type PendleVotingController_PoolVoteChange {
-  id: ID!
-  pool: String!
-  vote_0: BigInt!
-  vote_1: BigInt!
-}
-
-type PendleVotingController_RemovePool {
-  id: ID!
-  chainId: BigInt!
-  pool: String!
-}
-
-type PendleVotingController_SetPendlePerSec {
-  id: ID!
-  newPendlePerSec: BigInt!
-}
-
-type PendleVotingController_Upgraded {
-  id: ID!
-  implementation: String!
-}
-
 type PendleVotingController_Vote {
   id: ID!
   user: String!
-  pool: String!
-  weight: BigInt!
-  vote_0: BigInt!
-  vote_1: BigInt!
+  gauge: String!
+  weight: Float!
+  time: Int!
+  veCRV: Float!
+  veCRVoted: Float!
+  diffPreviousVote: Float!
+  tx: String!
 }
 
+type VePendle_NewLockPosition {
+  id: ID!
+  user: String!
+  amount: Float!
+  expiry: Int!
+}

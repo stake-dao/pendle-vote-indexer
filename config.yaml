@@ -2,22 +2,20 @@
 name: envio-indexer
 networks:
 - id: 1
-  start_block: 0
+  start_block: 16032087
   contracts:
   - name: PendleVotingController
     address:
     - 0x44087E105137a5095c008AaB6a6530182821F2F0
     handler: src/EventHandlers.ts
     events:
-    - event: AddPool(uint64 indexed chainId, address indexed pool)
-    - event: AdminChanged(address previousAdmin, address newAdmin)
-    - event: BeaconUpgraded(address indexed beacon)
-    - event: BroadcastResults(uint64 indexed chainId, uint128 indexed wTime, uint128 totalPendlePerSec)
-    - event: Initialized(uint8 version)
-    - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
-    - event: PoolVoteChange(address indexed pool, (uint128,uint128) vote)
-    - event: RemovePool(uint64 indexed chainId, address indexed pool)
-    - event: SetPendlePerSec(uint256 newPendlePerSec)
-    - event: Upgraded(address indexed implementation)
     - event: Vote(address indexed user, address indexed pool, uint64 weight, (uint128,uint128) vote)
-unordered_multichain_mode: true
+      field_selection:
+        transaction_fields:
+          - hash
+  - name: VePendle
+    address:
+    - 0x4f30A9D41B80ecC5B94306AB4364951AE3170210
+    handler: src/VePendleHandlers.ts
+    events:
+    - event: NewLockPosition(address indexed user, uint128 amount, uint128 expiry)
