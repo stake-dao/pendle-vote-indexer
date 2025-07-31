@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+name: envio-indexer
+networks:
+- id: 1
+  start_block: 0
+  contracts:
+  - name: PendleVotingController
+    address:
+    - 0x44087E105137a5095c008AaB6a6530182821F2F0
+    handler: src/EventHandlers.ts
+    events:
+    - event: AddPool(uint64 indexed chainId, address indexed pool)
+    - event: AdminChanged(address previousAdmin, address newAdmin)
+    - event: BeaconUpgraded(address indexed beacon)
+    - event: BroadcastResults(uint64 indexed chainId, uint128 indexed wTime, uint128 totalPendlePerSec)
+    - event: Initialized(uint8 version)
+    - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+    - event: PoolVoteChange(address indexed pool, (uint128,uint128) vote)
+    - event: RemovePool(uint64 indexed chainId, address indexed pool)
+    - event: SetPendlePerSec(uint256 newPendlePerSec)
+    - event: Upgraded(address indexed implementation)
+    - event: Vote(address indexed user, address indexed pool, uint64 weight, (uint128,uint128) vote)
+unordered_multichain_mode: true
