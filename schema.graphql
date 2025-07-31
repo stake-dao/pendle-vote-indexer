@@ -5,8 +5,8 @@ type PendleVotingController_Vote {
   weight: Float!
   time: Int!
   veCRV: Float!
-  veCRVoted: Float!
-  diffPreviousVote: Float!
+  veCRVoted: BigInt!
+  diffPreviousVote: BigInt!
   tx: String!
 }
 

@@ -7,11 +7,13 @@ import {
   PendleVotingController_Vote,
 } from "generated";
 
+const ZERO = BigInt(0);
+
 PendleVotingController.Vote.handler(async ({ event, context }) => {
 
   // Fetch previous vote
   const key: string = `${event.params.user}-${event.params.pool}`;
-  let veCRVotedPreviousVote = 0;
+  let veCRVotedPreviousVote = BigInt(0);
   let previousVote = await context.PendleVotingController_Vote.get(key);
   if (previousVote) {
     veCRVotedPreviousVote = previousVote.veCRVoted;
@@ -19,7 +21,7 @@ PendleVotingController.Vote.handler(async ({ event, context }) => {
 
   // Fetch ve position
   const vePosition = await context.VePendle_NewLockPosition.get(event.params.user);
-  if(!vePosition) {
+  if (!vePosition) {
     return;
   }
 
@@ -33,24 +35,27 @@ PendleVotingController.Vote.handler(async ({ event, context }) => {
     veCRV = parseFloat(formatUnits(bias - slope * BigInt(event.block.timestamp), 18));
   }
 
-  let veCRVoted = 0;
-  if (event.params.vote[1] !== BigInt(0)) {
+  let veCRVoted = ZERO;
+  if (event.params.vote[1] !== ZERO) {
     const t_start = BigInt(vePosition.expiry) - event.params.vote[0] / event.params.vote[1];
-    const ve = parseFloat(formatUnits(event.params.vote[0] - event.params.vote[1] * (BigInt(event.block.timestamp) - t_start), 18));
-    veCRVoted = Math.max(0, ve)
+    veCRVoted = event.params.vote[0] - event.params.vote[1] * (BigInt(event.block.timestamp) - t_start);
+    if (veCRVoted < ZERO) {
+      veCRVoted = ZERO;
+    }
   }
 
   // Format weight
   const weightFormatted = parseFloat(formatUnits(event.params.weight, 16));
+  const diffPreviousVote = veCRVotedPreviousVote === ZERO ? ZERO : veCRVoted - veCRVotedPreviousVote;
 
   const entity: PendleVotingController_Vote = {
     id: key,
     user: event.params.user,
     gauge: event.params.pool,
-    weight: weightFormatted,
+    weight: weightFormatted * 100,
     time: event.block.timestamp,
     tx: event.transaction.hash,
-    diffPreviousVote: veCRVotedPreviousVote === 0 ? 0 : veCRVoted - veCRVotedPreviousVote,
+    diffPreviousVote,
     veCRV,
     veCRVoted,
   };
