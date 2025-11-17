@@ -41,5 +41,5 @@ WORKDIR /app
 
 EXPOSE 8001
 
-# Execute the generated indexer directly
-CMD ["node", "generated/src/Index.res.js"]
+# Execute via ts-node so TypeScript handlers are transpiled at runtime
+CMD ["node", "-r", "ts-node/register/transpile-only", "generated/src/Index.res.js"]
