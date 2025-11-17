@@ -1,0 +1,126 @@
+# Pendle Vote Indexer Stack - Dokploy Deployment
+# Dokploy provides domain routing, SSL and environment management.
+# This compose file expects the external 'dokploy-network' created by Dokploy.
+
+services:
+  # PostgreSQL Database (internal-only)
+  pendle-postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pendle}
+      POSTGRES_USER: ${POSTGRES_USER:-indexer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-indexer} -d ${POSTGRES_DB:-pendle}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      dokploy-network:
+        aliases:
+          - pendle-postgres-${DEPLOYMENT_ID:-default}
+
+  # Hasura GraphQL (exposed through Dokploy / Traefik)
+  pendle-hasura:
+    image: hasura/graphql-engine:v2.36.0
+    restart: unless-stopped
+    depends_on:
+      pendle-postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        POSTGRES_HOST=pendle-postgres-${DEPLOYMENT_ID:-default}
+        until getent hosts $$POSTGRES_HOST > /dev/null 2>&1; do
+          echo "Waiting for $$POSTGRES_HOST DNS resolution..."
+          sleep 2
+        done
+        echo "DNS resolved, starting Hasura..."
+        exec graphql-engine serve
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgresql://${POSTGRES_USER:-indexer}:${POSTGRES_PASSWORD}@pendle-postgres-${DEPLOYMENT_ID:-default}:5432/${POSTGRES_DB:-pendle}
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgresql://${POSTGRES_USER:-indexer}:${POSTGRES_PASSWORD}@pendle-postgres-${DEPLOYMENT_ID:-default}:5432/${POSTGRES_DB:-pendle}
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET:?HASURA_GRAPHQL_ADMIN_SECRET is required}
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
+      HASURA_GRAPHQL_ENABLE_CONSOLE: ${HASURA_GRAPHQL_ENABLE_CONSOLE:-true}
+      HASURA_GRAPHQL_DEV_MODE: ${HASURA_GRAPHQL_DEV_MODE:-false}
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      HASURA_GRAPHQL_LOG_LEVEL: ${HASURA_GRAPHQL_LOG_LEVEL:-info}
+      HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: "true"
+      HASURA_GRAPHQL_CORS_DOMAIN: "*"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pendle-hasura-${DEPLOYMENT_ID:-default}-http.rule=Host(`${PUBLIC_DOMAIN:?PUBLIC_DOMAIN is required}`)"
+      - "traefik.http.routers.pendle-hasura-${DEPLOYMENT_ID:-default}-http.entrypoints=web"
+      - "traefik.http.routers.pendle-hasura-${DEPLOYMENT_ID:-default}-http.middlewares=redirect-to-https-${DEPLOYMENT_ID:-default}"
+      - "traefik.http.routers.pendle-hasura-${DEPLOYMENT_ID:-default}.rule=Host(`${PUBLIC_DOMAIN:?PUBLIC_DOMAIN is required}`)"
+      - "traefik.http.routers.pendle-hasura-${DEPLOYMENT_ID:-default}.entrypoints=websecure"
+      - "traefik.http.routers.pendle-hasura-${DEPLOYMENT_ID:-default}.tls=true"
+      - "traefik.http.routers.pendle-hasura-${DEPLOYMENT_ID:-default}.tls.certresolver=letsencrypt"
+      - "traefik.http.middlewares.redirect-to-https-${DEPLOYMENT_ID:-default}.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https-${DEPLOYMENT_ID:-default}.redirectscheme.port=443"
+      - "traefik.http.services.pendle-hasura-${DEPLOYMENT_ID:-default}.loadbalancer.server.port=8080"
+    networks:
+      - dokploy-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail -H \"X-Hasura-Admin-Secret: ${HASURA_GRAPHQL_ADMIN_SECRET}\" http://localhost:8080/healthz || exit 1"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # Envio Indexer (internal-only)
+  pendle-indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${INDEXER_IMAGE:-pendle-indexer}:${INDEXER_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      pendle-postgres:
+        condition: service_healthy
+      pendle-hasura:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-indexer}:${POSTGRES_PASSWORD}@pendle-postgres-${DEPLOYMENT_ID:-default}:5432/${POSTGRES_DB:-pendle}
+      ENVIO_PG_HOST: pendle-postgres-${DEPLOYMENT_ID:-default}
+      ENVIO_PG_PORT: ${ENVIO_PG_PORT:-5432}
+      ENVIO_PG_USER: ${ENVIO_PG_USER:-indexer}
+      ENVIO_PG_DATABASE: ${ENVIO_PG_DATABASE:-pendle}
+      ENVIO_PG_PASSWORD: ${ENVIO_PG_PASSWORD:-${POSTGRES_PASSWORD}}
+      ENVIO_PG_SSL_MODE: ${ENVIO_PG_SSL_MODE:-false}
+      HASURA_GRAPHQL_ENDPOINT: ${HASURA_GRAPHQL_ENDPOINT:-http://pendle-hasura:8080/v1/graphql}
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET}
+      ENVIO_API_TOKEN: ${ENVIO_API_TOKEN:-}
+      ENVIO_INDEXER_NAME: ${ENVIO_INDEXER_NAME:-pendle-vote}
+      RPC_URL_1: ${RPC_URL_1:-}
+      RPC_URL_137: ${RPC_URL_137:-}
+      RPC_URL_42161: ${RPC_URL_42161:-}
+    networks:
+      - dokploy-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail http://localhost:8001/health || exit 1"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+networks:
+  dokploy-network:
+    external: true
+
+volumes:
+  postgres-data:
+    driver: local
